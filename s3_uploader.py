@@ -78,7 +78,7 @@ def get_all_objects(bucket):
             return response['Contents']
     except Exception as e:
         logging.error(e)
-        return False
+        return None
 
 # Get an object from a bucket
 def get_object(bucket, key):

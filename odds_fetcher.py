@@ -1,12 +1,13 @@
 import requests
 from datetime import datetime, timedelta, timezone
-from .config import API_KEY, SPORT, REGIONS, MARKETS, ODDS_FORMAT, DATE_FORMAT
+from config import API_KEY, SPORT, REGIONS, MARKETS, ODDS_FORMAT, DATE_FORMAT
 import json
 from s3_uploader import upload_to_s3, delete_from_s3, get_object, download_object
 
+
 BUCKET_NAME = 'timjimmymlbdata'
-JSON_FILE = 'mlb_schedule.json'
-JSON_FILE_PATH = '/tmp/mlb_schedule.json'
+JSON_FILE = 'mlb_odds.json'
+JSON_FILE_PATH = '/tmp/mlb_odds.json'
 
 class OddsFetcher:
     def fetch_and_save_homerun_odds():
@@ -25,8 +26,9 @@ class OddsFetcher:
         game_ids = [event['id'] for event in events]
 
         # Load existing data if available
-        if get_object(BUCKET_NAME, JSON_FILE) == False:
+        if not get_object(BUCKET_NAME, JSON_FILE):
             existing_data = {'entries': []}
+            print("No existing data found.")
         else:
             download_object(BUCKET_NAME, JSON_FILE, JSON_FILE_PATH)
             with open(JSON_FILE_PATH, 'r') as json_file:
@@ -44,8 +46,12 @@ class OddsFetcher:
         }
         existing_data['entries'].append(new_entry)
 
+        # Write the updated data to a file
+        with open(JSON_FILE_PATH, 'w') as json_file:
+            json.dump(existing_data, json_file)
+
         # Upload the updated data to S3
-        upload_to_s3(BUCKET_NAME, JSON_FILE, JSON_FILE_PATH)
+        upload_to_s3(JSON_FILE_PATH, BUCKET_NAME, JSON_FILE)
 
         return combined_odds_data
 
@@ -110,3 +116,25 @@ class OddsFetcher:
         end_str = end_of_today_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         return today_str, end_str
+    
+
+def main(event, lambda_context):
+    try:
+        # Check the current UTC time
+        current_time_utc = datetime.now(timezone.utc)
+        delete_time_utc = current_time_utc.replace(hour=11, minute=30, second=0, microsecond=0)
+
+        if current_time_utc < delete_time_utc:
+            if not get_object(BUCKET_NAME, JSON_FILE):
+                print("No existing data found.")
+            else:
+                # Delete the existing file in S3
+                delete_from_s3(BUCKET_NAME, JSON_FILE)
+        
+        # Fetch and save the homerun odds
+        OddsFetcher.fetch_and_save_homerun_odds()
+    except Exception as e:
+        print(e)
+
+if __name__ == '__main__':
+    main(event=None, lambda_context=None)
