@@ -5,5 +5,4 @@
 ## Features
 - Fetches daily MLB game odds for home runs from the Odds API.
 - Integrates with Amazon S3 to store and manage odds data.
-- Automatically updates the odds data and stores it with timestamps.
 
